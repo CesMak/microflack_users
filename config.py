@@ -13,11 +13,10 @@ else:
 class Config(object):
     DEBUG = False
     TESTING = False
-    SECRET_KEY = os.environ.get('SECRET_KEY',
-                                '51f52814-0071-11e6-a247-000ec6c2372c')
+    SECRET_KEY = os.environ.get('SECRET_KEY', '51f52814-0071-11e6-a247-000ec6c2372c')
     JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY', SECRET_KEY)
-    SQLALCHEMY_DATABASE_URI = os.environ.get(
-        'DATABASE_URL', 'sqlite:///' + os.path.join(basedir, 'users.sqlite'))
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', 'sqlite:///' + os.path.join(basedir, 'users.sqlite'))
+    print("USERS DB: ", SQLALCHEMY_DATABASE_URI)
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
 

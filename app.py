@@ -17,8 +17,8 @@ app = Flask(__name__)
 config_name = os.environ.get('FLASK_CONFIG', 'dev')
 app.config.from_object(getattr(config, config_name.title() + 'Config'))
 
-db = SQLAlchemy(app)
-migrate = Migrate(app, db)
+db         = SQLAlchemy(app)
+migrate    = Migrate(app, db)
 basic_auth = HTTPBasicAuth()
 
 message_queue = 'redis://' + os.environ['REDIS'] if 'REDIS' in os.environ \
@@ -54,13 +54,14 @@ def password_error():
 class User(db.Model):
     """The User model."""
     __tablename__ = 'users'
-    id = db.Column(db.Integer, primary_key=True)
-    created_at = db.Column(db.Integer, default=timestamp)
-    updated_at = db.Column(db.Integer, default=timestamp, onupdate=timestamp)
-    last_seen_at = db.Column(db.Integer, default=timestamp)
-    nickname = db.Column(db.String(32), nullable=False, unique=True)
+    id            = db.Column(db.Integer, primary_key=True)
+    created_at    = db.Column(db.Integer, default=timestamp)
+    updated_at    = db.Column(db.Integer, default=timestamp, onupdate=timestamp)
+    last_seen_at  = db.Column(db.Integer, default=timestamp)
+    nickname      = db.Column(db.String(32), nullable=False, unique=True)
     password_hash = db.Column(db.String(256), nullable=False)
-    online = db.Column(db.Boolean, default=False)
+    online        = db.Column(db.Boolean, default=False)
+    roomid        = db.Column(db.Integer, nullable=False, default=0)
 
     @property
     def password(self):
@@ -101,6 +102,7 @@ class User(db.Model):
             'created_at': self.created_at,
             'updated_at': self.updated_at,
             'nickname': self.nickname,
+            'roomid': self.roomid,
             'last_seen_at': self.last_seen_at,
             'online': self.online,
             '_links': {
