@@ -229,7 +229,7 @@ def get_me_user():
     This endpoint requires basic auth with nickname and password.
     """
     print(g)
-    print(current_user.to_dict())
+    print(g.current_user.to_dict())
     return jsonify(g.current_user.to_dict())
 
 
