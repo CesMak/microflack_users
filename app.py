@@ -32,7 +32,7 @@ else:
 @basic_auth.verify_password
 def verify_password(nickname, password):
     """Password verification callback."""
-    print(nickname, password)
+    print("inside verify_password users:", nickname, password)
     if not nickname or not password:
         return False
     user = User.query.filter_by(nickname=nickname).first()
@@ -41,7 +41,6 @@ def verify_password(nickname, password):
     user.ping()
     db.session.commit()
     g.current_user = user
-    print(g)
     return True
 
 
@@ -90,7 +89,7 @@ class User(db.Model):
 
     def from_dict(self, data, partial_update=True):
         """Import user data from a dictionary. Converts model to representation (for api)"""
-        for field in ['nickname', 'password']:
+        for field in ['nickname', 'password', 'roomid']:
             try:
                 setattr(self, field, data[field])
             except KeyError:
@@ -123,7 +122,6 @@ class User(db.Model):
             user.online = False
             db.session.add(user)
         db.session.commit()
-
 
 @db.event.listens_for(User, 'after_insert')
 @db.event.listens_for(User, 'after_update')
@@ -228,6 +226,7 @@ def get_me_user():
     Return the authenticated user.
     This endpoint requires basic auth with nickname and password.
     """
+    print("inside get_me_user")
     print(g)
     print(g.current_user.to_dict())
     return jsonify(g.current_user.to_dict())
