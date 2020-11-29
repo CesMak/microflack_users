@@ -1,8 +1,9 @@
 import os
 import threading
 import time
+import logging
 
-from flask import Flask, jsonify, request, abort, g
+from flask import Flask, jsonify, request, abort, g, session
 from flask_httpauth import HTTPBasicAuth
 from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
@@ -12,6 +13,15 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import config
 from microflack_common.auth import token_auth, token_optional_auth
 from microflack_common.utils import timestamp, url_for
+from microflack_common import requests
+import base64
+
+logging.basicConfig(level=logging.WARNING, format='[%(funcName)10s()-%(lineno)s:] %(message)s')
+# logging works like this:
+# logging.info("inside /api/users/me.....")
+# logging.warning("inside /api/users/me.....")
+# logging.error("inside /api/users/me.....")
+# logging.critical("inside /api/users/me.....")
 
 app = Flask(__name__)
 config_name = os.environ.get('FLASK_CONFIG', 'dev')
@@ -32,7 +42,6 @@ else:
 @basic_auth.verify_password
 def verify_password(nickname, password):
     """Password verification callback."""
-    print("inside verify_password users:", nickname, password)
     if not nickname or not password:
         return False
     user = User.query.filter_by(nickname=nickname).first()
@@ -63,6 +72,7 @@ class User(db.Model):
     password_hash = db.Column(db.String(256), nullable=False)
     online        = db.Column(db.Boolean, default=False)
     roomid        = db.Column(db.Integer, nullable=False, default=0)
+    sid           = db.Column(db.String(256), nullable=False, default="")
 
     @property
     def password(self):
@@ -89,7 +99,7 @@ class User(db.Model):
 
     def from_dict(self, data, partial_update=True):
         """Import user data from a dictionary. Converts model to representation (for api)"""
-        for field in ['nickname', 'password', 'roomid']:
+        for field in ['nickname', 'password', 'roomid', 'sid']:
             try:
                 setattr(self, field, data[field])
             except KeyError:
@@ -104,6 +114,7 @@ class User(db.Model):
             'updated_at': self.updated_at,
             'nickname': self.nickname,
             'roomid': self.roomid,
+            'sid': self.sid,
             'last_seen_at': self.last_seen_at,
             'online': self.online,
             '_links': {
@@ -188,6 +199,12 @@ def get_users():
     if request.args.get('updated_since'):
         users = users.filter(
             User.updated_at >= int(request.args.get('updated_since')))
+    # users=SELECT users.id AS users_id, users.created_at AS users_created_at, users.updated_at AS users_updated_at, users.last_seen_at AS users_last_seen_at, users.nickname AS users_nickname, users.password_hash AS users_password_hash, users.online AS users_online, users.roomid AS users_roomid, users.sid AS users_sid
+    #       FROM users
+    #       WHERE users.updated_at >= %(updated_at_1)s ORDER BY users.updated_at ASC, users.nickname ASC
+    # for i in users.all():
+    #     print(i)
+    #     print(i.to_dict())
     return jsonify({'users': [user.to_dict() for user in users.all()]})
 
 
@@ -209,6 +226,7 @@ def edit_user(id):
     Modify an existing user.
     This endpoint requires a valid user token.
     Note: users are only allowed to modify themselves.
+    sid is empty here as well.
     """
     user = User.query.get_or_404(id)
     if user.id != g.jwt_claims['user_id']:
@@ -225,10 +243,9 @@ def get_me_user():
     """
     Return the authenticated user.
     This endpoint requires basic auth with nickname and password.
+    The user is usually offline here. sid is empty
+    This function is called only once after login
     """
-    print("inside get_me_user")
-    print(g)
-    print(g.current_user.to_dict())
     return jsonify(g.current_user.to_dict())
 
 
@@ -237,6 +254,8 @@ def get_me_user():
 def set_user_online():
     """Set the user that owns the token online."""
     user = User.query.get(g.jwt_claims['user_id'])
+    socketio.emit('updated_model', {'class': 'Message',
+                                    'model': {'source': '', 'html': '<strong>Server: Hello '+str(user.nickname)+' you are pinged!</strong>', 'roomid': user.roomid}}, room=user.sid)
     if user is not None:
         user.ping()
         db.session.commit()
@@ -248,8 +267,13 @@ def set_user_online():
 def set_user_offline():
     """Set the user that owns the token offline."""
     user = User.query.get(g.jwt_claims['user_id'])
+
+    # message to whole room:
+    socketio.emit('updated_model', {'class': 'Message',
+                                    'model': {'source': '', 'html': '<strong>Server: '+str(user.nickname)+' has left the room.</strong>', 'roomid': user.roomid}}, room=user.roomid)
     if user is not None:
         user.online = False
+        user.sid    = ""
         db.session.commit()
     return '', 204
 
