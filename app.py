@@ -98,7 +98,8 @@ class User(db.Model):
         return user
 
     def from_dict(self, data, partial_update=True):
-        """Import user data from a dictionary. Converts model to representation (for api)"""
+        """Import user data from a dictionary. Converts model to representation (for api)
+        Note a request must contain at least these fields nickname,.... sid"""
         for field in ['nickname', 'password', 'roomid', 'sid']:
             try:
                 setattr(self, field, data[field])

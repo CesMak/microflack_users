@@ -13,9 +13,11 @@ import app
 app.socketio = mock.MagicMock()
 from app import app, db, User, socketio
 
+#30.11.2020 works: adopted for sid and roomid 
 
 class UserTests(FlackTestCase):
     def setUp(self):
+        print("inside setUp the Test")
         self.ctx = app.app_context()
         self.ctx.push()
         db.drop_all()  # just in case
@@ -28,16 +30,21 @@ class UserTests(FlackTestCase):
 
     def test_user(self):
         # get users without auth
-        r, s, h = self.get('/api/users')
+        r, s, h = self.get('/api/users') # {'users': []}, 200, Content-Type: application/json
         self.assertEqual(s, 200)
 
         # get users with bad auth
+        # returns: r,s,h={'error': 'authentication required'} 401 Content-Type: application/json
         r, s, h = self.get('/api/users', token_auth='bad-token')
         self.assertEqual(s, 401)
 
         # create a new user
+        # r = {'_links': {'messages': '/api/messages/1', 'self': '/api/users/1', 'tokens': '/api/tokens'}, 'created_at': 1606740727, 'id': 1, 'last_seen_at': 1606740727, 'nickname': 'foo', 'online': False, 'roomid': 0, 'sid': '', 'updated_at': 1606740727}
         r, s, h = self.post('/api/users', data={'nickname': 'foo',
-                                                'password': 'bar'})
+                                                'password': 'bar',
+                                                 'roomid': 0,
+                                                 'sid': ''})
+        #socketio.emit.call_args=call('updated_model', {'class': 'User', 'model': {'id': 1, 'created_at': 1606740797, 'updated_at': 1606740797, 'nickname': 'foo', 'roomid': 0, 'sid': '', 'last_seen_at': 1606740797, 'online': False, '_links': {'self': '/api/users/1', 'messages': '/api/messages/1', 'tokens': '/api/tokens'}}})
         self.assertEqual(s, 201)
         self.assertEqual(socketio.emit.call_args[0][0], 'updated_model')
         self.assertEqual(socketio.emit.call_args[0][1]['class'], 'User')
@@ -45,7 +52,8 @@ class UserTests(FlackTestCase):
                          'foo')
         url = h['Location']
 
-        # create a duplicate user
+
+        # create a duplicate user -> error unique nickname
         r, s, h = self.post('/api/users', data={'nickname': 'foo',
                                                 'password': 'baz'})
         self.assertEqual(s, 400)
@@ -55,9 +63,10 @@ class UserTests(FlackTestCase):
         self.assertEqual(s, 400)
 
         # request a token
+        # generate a token for userid=1
         token = generate_token(1)
 
-        # get user
+        # # get user url=http://localhost/api/users/1
         r, s, h = self.get(url)
         self.assertEqual(s, 200)
         self.assertEqual(r['nickname'], 'foo')
@@ -74,7 +83,9 @@ class UserTests(FlackTestCase):
 
         # create second user
         r, s, h = self.post('/api/users', data={'nickname': 'bar',
-                                                'password': 'baz'})
+                                                'password': 'baz',
+                                                 'roomid': 0,
+                                                 'sid': ''})
         self.assertEqual(s, 201)
         url2 = h['Location']
 
@@ -94,10 +105,14 @@ class UserTests(FlackTestCase):
     def test_user_online_offline(self):
         # create a couple of users and a token
         r, s, h = self.post('/api/users', data={'nickname': 'foo',
-                                                'password': 'foo'})
+                                                'password': 'foo',
+                                                 'roomid': 0,
+                                                 'sid': ''})
         self.assertEqual(s, 201)
         r, s, h = self.post('/api/users', data={'nickname': 'bar',
-                                                'password': 'bar'})
+                                                'password': 'bar',
+                                                 'roomid': 0,
+                                                 'sid': ''})
         self.assertEqual(s, 201)
         r, s, h = self.get('/api/users/me', basic_auth='foo:foo')
         self.assertEqual(s, 200)
